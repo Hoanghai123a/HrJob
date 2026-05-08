@@ -21,7 +21,7 @@ service cloud.firestore {
       return isSignedIn() && (
         request.auth.token.email == 'hoanghaitdvp98@gmail.com' ||
         request.auth.token.email == 'admin@vrecruit.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
@@ -54,6 +54,13 @@ service cloud.firestore {
              data.content is string && 
              data.status in ['pending', 'completed'] &&
              data.createdAt is timestamp;
+    }
+
+    function isValidDirectGuidance(data) {
+      return data.senderId is string && data.receiverId is string && 
+             data.content is string && data.read is bool && 
+             data.createdAt is timestamp &&
+             (!data.keys().contains('title') || data.title is string);
     }
 
     // --- Match Rules ---
@@ -104,6 +111,14 @@ service cloud.firestore {
     match /settings/{id} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    // Direct Guidance
+    match /directGuidance/{id} {
+      allow create: if isAdmin() && isValidDirectGuidance(incoming());
+      allow read: if isAdmin() || (isSignedIn() && resource.data.receiverId == request.auth.uid);
+      allow update: if (isAdmin() || (isSignedIn() && resource.data.receiverId == request.auth.uid)) && 
+                     incoming().diff(existing()).affectedKeys().hasOnly(['read']);
     }
   }
 }

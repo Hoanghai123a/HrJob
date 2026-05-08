@@ -84,6 +84,19 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["companyName", "interviewTime", "gender", "baseSalary", "allowance", "createdAt"]
+    },
+    "DirectGuidance": {
+      "title": "DirectGuidance",
+      "description": "Personal guidance sent by admin to specific user",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "content": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "receiverId", "content", "read", "createdAt"]
     }
   },
   "firestore": {
@@ -106,6 +119,10 @@
     "/jobs/{id}": {
       "schema": "JobPost",
       "description": "Job recruitment posts"
+    },
+    "/directGuidance/{id}": {
+      "schema": "DirectGuidance",
+      "description": "Direct guidance messages"
     }
   }
 }

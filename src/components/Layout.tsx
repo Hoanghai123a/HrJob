@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Home, Calendar, BookOpen, MessageSquare, User, LayoutDashboard } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,6 +13,53 @@ interface LayoutProps {
 
 export default function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
   const { profile } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingComplaintsCount, setPendingComplaintsCount] = useState(0);
+
+  useEffect(() => {
+    if (!profile) {
+      setUnreadCount(0);
+      setPendingComplaintsCount(0);
+      return;
+    }
+
+    let unreadUnsubscribe: () => void = () => {};
+    let complaintsUnsubscribe: () => void = () => {};
+
+    // For regular users: Count unread direct guidances
+    if (profile.role !== 'admin') {
+      const q = query(
+        collection(db, 'directGuidance'),
+        where('receiverId', '==', profile.uid),
+        where('read', '==', false)
+      );
+
+      unreadUnsubscribe = onSnapshot(q, (snapshot) => {
+        setUnreadCount(snapshot.size);
+      }, (error) => {
+        console.error('Error listening to unread guidance:', error);
+      });
+    }
+
+    // For admins: Count pending complaints
+    if (profile.role === 'admin') {
+      const cq = query(
+        collection(db, 'complaints'),
+        where('status', '==', 'pending')
+      );
+
+      complaintsUnsubscribe = onSnapshot(cq, (snapshot) => {
+        setPendingComplaintsCount(snapshot.size);
+      }, (error) => {
+        console.error('Error listening to pending complaints:', error);
+      });
+    }
+
+    return () => {
+      unreadUnsubscribe();
+      complaintsUnsubscribe();
+    };
+  }, [profile]);
 
   const tabs = [
     { id: 'jobs', icon: Home, label: 'Bảng tin' },
@@ -75,6 +124,14 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
                 />
               )}
               <Icon size={22} className="relative z-10" />
+              {tab.id === 'instructions' && unreadCount > 0 && (
+                <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white z-20 shadow-sm animate-bounce" />
+              )}
+              {tab.id === 'complaints' && profile?.role === 'admin' && pendingComplaintsCount > 0 && (
+                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white z-20 shadow-sm">
+                  {pendingComplaintsCount > 9 ? '9+' : pendingComplaintsCount}
+                </div>
+              )}
               <span className="text-[10px] font-bold relative z-10 uppercase tracking-widest">{tab.label}</span>
             </button>
           );

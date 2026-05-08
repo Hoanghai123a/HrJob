@@ -73,6 +73,16 @@ export interface JobPost {
   createdAt: any;
 }
 
+export interface DirectGuidance {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  title?: string;
+  content: string;
+  read: boolean;
+  createdAt: any;
+}
+
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, updateDoc, collection, getDocs, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs, setDoc, getDoc, deleteDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { handleFirestoreError } from '../lib/firestoreUtils';
 import { OperationType, UserProfile, AppSettings } from '../types';
-import { Save, LogOut, User as UserIcon, Building, Clock, Wallet, Banknote, Key, UserPlus, Users, Plus, Trash2, Phone, Hash, UserCircle, FileSpreadsheet, Download, AlertCircle, Search, RefreshCw, ShieldAlert, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, LogOut, User as UserIcon, Building, Clock, Wallet, Banknote, Key, UserPlus, Users, Plus, Trash2, Phone, Hash, UserCircle, FileSpreadsheet, Download, AlertCircle, Search, RefreshCw, ShieldAlert, ShieldCheck, ChevronDown, ChevronUp, MessageSquareText, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { initializeApp, deleteApp } from 'firebase/app';
@@ -17,6 +17,13 @@ export default function ProfilePage() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
+  const [showGuidanceModal, setShowGuidanceModal] = useState(false);
+  const [showCompanyGuidanceModal, setShowCompanyGuidanceModal] = useState(false);
+  const [selectedGuidanceUser, setSelectedGuidanceUser] = useState<UserProfile | null>(null);
+  const [selectedGuidanceCompany, setSelectedGuidanceCompany] = useState('');
+  const [guidanceContent, setGuidanceContent] = useState('');
+  const [guidanceTitle, setGuidanceTitle] = useState('');
+  const [sendingGuidance, setSendingGuidance] = useState(false);
   const [showCreateAccountForm, setShowCreateAccountForm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   
@@ -394,6 +401,67 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSendGuidance = async () => {
+    if (!profile || !selectedGuidanceUser || !guidanceContent.trim()) return;
+    
+    setSendingGuidance(true);
+    try {
+      await addDoc(collection(db, 'directGuidance'), {
+        senderId: profile.uid,
+        receiverId: selectedGuidanceUser.uid,
+        title: guidanceTitle.trim() || 'Hướng dẫn từ Admin',
+        content: guidanceContent.trim(),
+        read: false,
+        createdAt: Timestamp.now()
+      });
+      showNotification('success', 'Đã gửi hướng dẫn thành công!');
+      setShowGuidanceModal(false);
+      setGuidanceContent('');
+      setGuidanceTitle('');
+      setSelectedGuidanceUser(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'directGuidance');
+    } finally {
+      setSendingGuidance(false);
+    }
+  };
+
+  const handleSendCompanyGuidance = async () => {
+    if (!profile || !selectedGuidanceCompany || !guidanceContent.trim()) return;
+    
+    const targetUsers = allUsers.filter(u => u.company === selectedGuidanceCompany);
+    if (targetUsers.length === 0) {
+      showNotification('error', 'Không tìm thấy người dùng nào thuộc công ty này');
+      return;
+    }
+
+    setSendingGuidance(true);
+    try {
+      // Send individual messages to each user in the company
+      const promises = targetUsers.map(user => 
+        addDoc(collection(db, 'directGuidance'), {
+          senderId: profile.uid,
+          receiverId: user.uid,
+          title: guidanceTitle.trim() || 'Hướng dẫn từ Admin',
+          content: guidanceContent.trim(),
+          read: false,
+          createdAt: Timestamp.now()
+        })
+      );
+      
+      await Promise.all(promises);
+      showNotification('success', `Đã gửi hướng dẫn tới ${targetUsers.length} người dùng công ty ${selectedGuidanceCompany}`);
+      setShowCompanyGuidanceModal(false);
+      setGuidanceContent('');
+      setGuidanceTitle('');
+      setSelectedGuidanceCompany('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'directGuidance');
+    } finally {
+      setSendingGuidance(false);
+    }
+  };
+
   return (
     <div className="space-y-6 relative">
       <AnimatePresence>
@@ -591,6 +659,163 @@ export default function ProfilePage() {
               <div className="flex gap-3">
                 <button onClick={() => setShowPassModal(false)} className="flex-1 py-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">Hủy</button>
                 <button onClick={handlePasswordChange} className="flex-[2] bg-slate-900 text-white rounded-2xl py-4 font-black uppercase tracking-widest text-[10px] shadow-xl">Cập nhật</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCompanyGuidanceModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowCompanyGuidanceModal(false)}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm space-y-6"
+              onClick={e => e.stopPropagation()}
+            >
+              <div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight leading-tight">Gửi tới cả công ty</h3>
+                <p className="text-[10px] text-slate-400 font-black mt-1 uppercase tracking-widest">Gửi hướng dẫn tới toàn bộ nhân sự công ty</p>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1">
+                    <Building size={12} /> Chọn công ty
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedGuidanceCompany}
+                      onChange={e => setSelectedGuidanceCompany(e.target.value)}
+                      className="w-full appearance-none bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black focus:ring-2 focus:ring-blue-600 shadow-inner cursor-pointer"
+                    >
+                      <option value="">Chọn công ty...</option>
+                      {companies.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
+                      <ChevronDown size={16} className="text-slate-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1">
+                    <MessageSquareText size={12} /> Tiêu đề hướng dẫn
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="Vd: Thông báo cấp phát đồng phục..."
+                    value={guidanceTitle}
+                    onChange={e => setGuidanceTitle(e.target.value)}
+                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-blue-600 shadow-inner"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1">
+                    <MessageSquareText size={12} /> Nội dung hướng dẫn
+                  </label>
+                  <textarea 
+                    placeholder="Vd: Ngày mai toàn bộ nhân viên Compal sẽ được cấp phát đồng phục..."
+                    rows={5}
+                    value={guidanceContent}
+                    onChange={e => setGuidanceContent(e.target.value)}
+                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-blue-600 shadow-inner leading-relaxed"
+                  />
+                </div>
+                
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    onClick={() => setShowCompanyGuidanceModal(false)} 
+                    className="flex-1 py-4 font-black text-slate-400 uppercase tracking-widest text-[10px]"
+                  >
+                    Hủy
+                  </button>
+                  <button 
+                    onClick={handleSendCompanyGuidance} 
+                    disabled={sendingGuidance || !guidanceContent.trim() || !selectedGuidanceCompany}
+                    className="flex-[2] bg-blue-600 text-white rounded-2xl py-4 font-black uppercase tracking-widest text-[10px] shadow-xl shadow-blue-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {sendingGuidance ? 'Đang gửi...' : (
+                      <>
+                        <Send size={14} />
+                        Gửi hàng loạt
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showGuidanceModal && selectedGuidanceUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowGuidanceModal(false)}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm space-y-6"
+              onClick={e => e.stopPropagation()}
+            >
+              <div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Gửi hướng dẫn riêng</h3>
+                <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-widest">Tới: {selectedGuidanceUser.fullName || selectedGuidanceUser.email}</p>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1">
+                    <MessageSquareText size={12} /> Tiêu đề
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="Nhập tiêu đề hướng dẫn..."
+                    value={guidanceTitle}
+                    onChange={e => setGuidanceTitle(e.target.value)}
+                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-blue-600 shadow-inner"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1">
+                    <MessageSquareText size={12} /> Nội dung
+                  </label>
+                  <textarea 
+                    placeholder="Nhập nội dung hướng dẫn..."
+                    rows={5}
+                    value={guidanceContent}
+                    onChange={e => setGuidanceContent(e.target.value)}
+                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-blue-600 shadow-inner leading-relaxed"
+                  />
+                </div>
+                
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setShowGuidanceModal(false)} 
+                    className="flex-1 py-4 font-black text-slate-400 uppercase tracking-widest text-[10px]"
+                  >
+                    Hủy
+                  </button>
+                  <button 
+                    onClick={handleSendGuidance} 
+                    disabled={sendingGuidance || !guidanceContent.trim()}
+                    className="flex-[2] bg-blue-600 text-white rounded-2xl py-4 font-black uppercase tracking-widest text-[10px] shadow-xl shadow-blue-100 flex items-center justify-center gap-2"
+                  >
+                    {sendingGuidance ? 'Đang gửi...' : (
+                      <>
+                        <Send size={14} />
+                        Gửi ngay
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -940,28 +1165,36 @@ export default function ProfilePage() {
 
           <div className="bg-white p-2 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-6">
             <div className="px-4 pt-4 flex flex-col gap-4 mb-[10px]">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-[3px]">
                 <div className="flex items-center gap-3">
                   <Users className="text-blue-600" size={24} />
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">Danh sách nhân sự</h3>
+                  <h3 className="text-[12px] leading-[15px] font-black text-slate-900 tracking-tight">Danh sách nhân sự</h3>
                 </div>
-                <div className="flex items-center gap-2">
+                <button 
+                  onClick={fetchUsers}
+                  className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-xl"
+                  title="Làm mới danh sách"
+                >
+                  <RefreshCw size={18} />
+                </button>
+              </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={() => setShowCompanyGuidanceModal(true)}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-50 text-blue-600 rounded-2xl text-[12px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all shadow-sm active:scale-95"
+                    title="Gửi hướng dẫn hàng loạt cho công ty"
+                  >
+                    <Send size={14} /> Gửi theo công ty
+                  </button>
                   <button 
                     onClick={exportUsersToExcel}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-100 transition-colors shadow-sm"
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-green-50 text-green-600 rounded-2xl text-[12px] font-black uppercase tracking-widest hover:bg-green-100 transition-all shadow-sm active:scale-95"
                     title="Xuất file Excel"
                   >
                     <Download size={14} /> Xuất Excel
                   </button>
-                  <button 
-                    onClick={fetchUsers}
-                    className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-xl"
-                    title="Làm mới danh sách"
-                  >
-                    <RefreshCw size={18} />
-                  </button>
                 </div>
-              </div>
 
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -978,7 +1211,7 @@ export default function ProfilePage() {
               </p>
             </div>
 
-            <div className="divide-y divide-slate-50 px-2">
+            <div className="divide-y divide-slate-50 px-2 mb-[3px] pb-[3px] pt-[3px]">
               {allUsers.length === 0 ? (
                 <div className="py-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">
                   Đang tải danh sách...
@@ -988,7 +1221,7 @@ export default function ProfilePage() {
                   Không tìm thấy nhân sự phù hợp
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 pl-[5px]">
                   {displayedUsers.map((u) => (
                     <motion.div 
                       layout
@@ -1012,14 +1245,14 @@ export default function ProfilePage() {
                             {u.fullName ? u.fullName.charAt(0) : u.email?.charAt(0)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-black text-slate-900 truncate tracking-tight flex items-center gap-2">
+                            <h3 className="text-[12px] leading-[15px] font-black text-slate-900 truncate tracking-tight flex items-center gap-2">
                               {u.fullName || u.email}
                               {expandedUserId === u.uid ? <ChevronUp size={14} className="text-blue-600" /> : <ChevronDown size={14} className="text-slate-400" />}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{u.employeeId || 'Chưa có mã'}</span>
+                            </h3>
+                            <div className="flex items-center gap-2 text-[8px]">
+                              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">{u.employeeId || 'Chưa có mã'}</span>
                               <span className="w-1 h-1 rounded-full bg-slate-300" />
-                              <span className="text-[9px] font-bold text-slate-400 truncate">{u.company || 'HR Pro'}</span>
+                              <span className="text-[8px] font-bold text-slate-400 truncate">{u.company || 'HR Pro'}</span>
                             </div>
                           </div>
                         </div>
@@ -1031,6 +1264,16 @@ export default function ProfilePage() {
                             title="Gửi email đổi mật khẩu"
                           >
                             <Key size={14} />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setSelectedGuidanceUser(u);
+                              setShowGuidanceModal(true);
+                            }}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                            title="Gửi hướng dẫn riêng"
+                          >
+                            <MessageSquareText size={14} />
                           </button>
                           <button 
                             onClick={() => handleDeleteUser(u.uid)}

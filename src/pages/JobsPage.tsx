@@ -16,6 +16,7 @@ export default function JobsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -229,7 +230,101 @@ export default function JobsPage() {
       </div>
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <AnimatePresence>
+        {showAddForm && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-xl space-y-5 mb-6"
+          >
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                {editingId ? 'Chỉnh sửa tin tuyển dụng' : 'Thêm tin tuyển dụng'}
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowAddForm(false);
+                  setEditingId(null);
+                }} 
+                className="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <Plus size={24} className="rotate-45" />
+              </button>
+            </div>
+            
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+               <div className="space-y-1">
+                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tên công ty</label>
+                 <input value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
+               </div>
+               <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Địa chỉ (KCN, Khu vực...)</label>
+                <input value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Vd: Bá Thiện, Bình Xuyên..." className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Link Google Maps</label>
+                <input value={formData.mapsUrl} onChange={e => setFormData({...formData, mapsUrl: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Hình ảnh (Máy ảnh/Từ máy - Tối đa 3)</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {formData.images.map((img, idx) => (
+                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden group">
+                      <img src={img} alt="Preview" className="w-full h-full object-cover" />
+                      <button 
+                        onClick={() => removeImage(idx)}
+                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.images.length < 3 && (
+                    <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-blue-500 hover:border-blue-500 cursor-pointer transition-all">
+                      <Plus size={20} />
+                      <span className="text-[8px] font-black uppercase mt-1">Tải ảnh</span>
+                      <input type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
+                    </label>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Giờ PV</label>
+                  <input value={formData.interviewTime} onChange={e => setFormData({...formData, interviewTime: e.target.value})} placeholder="Vd: 8:00 Thứ 2" className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tuyển Nam/Nữ</label>
+                  <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600">
+                    <option value="Nam/Nữ">Nam/Nữ</option>
+                    <option value="Nam">Chỉ Nam</option>
+                    <option value="Nữ">Chỉ Nữ</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lương CB</label>
+                  <input type="number" value={formData.baseSalary} onChange={e => setFormData({...formData, baseSalary: Number(e.target.value)})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phụ cấp</label>
+                  <input type="number" value={formData.allowance} onChange={e => setFormData({...formData, allowance: Number(e.target.value)})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
+                </div>
+              </div>
+              <textarea placeholder="Giấy tờ yêu cầu" value={formData.requiredDocs} onChange={e => setFormData({...formData, requiredDocs: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
+              <textarea placeholder="Ghi chú khác" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
+            </div>
+
+            <button onClick={handleCreateOrUpdate} className="w-full bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-100 flex items-center justify-center gap-2 uppercase tracking-widest text-sm">
+              <Save size={18} /> {editingId ? 'Cập nhật bài đăng' : 'Lưu bài đăng'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredJobs.map((job) => {
           const isExpanded = expandedId === job.id;
           return (
@@ -248,7 +343,17 @@ export default function JobsPage() {
               <div className="grid grid-cols-3 gap-0.5 bg-slate-100 overflow-hidden h-24 sm:h-32">
                 {job.images && job.images.length > 0 ? (
                   job.images.slice(0, 3).map((img, i) => (
-                    <img key={i} src={img} alt="Job" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img 
+                      key={i} 
+                      src={img} 
+                      alt="Job" 
+                      className="w-full h-full object-cover hover:scale-110 transition-transform duration-500 cursor-zoom-in" 
+                      referrerPolicy="no-referrer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedImageUrl(img);
+                      }}
+                    />
                   ))
                 ) : (
                   <div className="col-span-3 flex items-center justify-center text-slate-300">
@@ -384,96 +489,37 @@ export default function JobsPage() {
         )}
       </div>
 
+      {/* Image Preview Modal */}
       <AnimatePresence>
-        {showAddForm && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl space-y-5"
+        {selectedImageUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedImageUrl(null)}
+            className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 md:p-8 cursor-zoom-out"
           >
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                {editingId ? 'Chỉnh sửa tin tuyển dụng' : 'Thêm tin tuyển dụng'}
-              </h3>
-              <button 
-                onClick={() => {
-                  setShowAddForm(false);
-                  setEditingId(null);
-                }} 
-                className="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-5xl w-full h-full flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={selectedImageUrl}
+                alt="Preview"
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                referrerPolicy="no-referrer"
+              />
+              <button
+                onClick={() => setSelectedImageUrl(null)}
+                className="absolute top-0 -right-2 md:-right-12 text-white/50 hover:text-white p-2 transition-colors"
+                aria-label="Close preview"
               >
-                <Plus size={24} className="rotate-45" />
+                <X size={32} />
               </button>
-            </div>
-            
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-               <div className="space-y-1">
-                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tên công ty</label>
-                 <input value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
-               </div>
-               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Địa chỉ (KCN, Khu vực...)</label>
-                <input value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Vd: Bá Thiện, Bình Xuyên..." className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Link Google Maps</label>
-                <input value={formData.mapsUrl} onChange={e => setFormData({...formData, mapsUrl: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Hình ảnh (Máy ảnh/Từ máy - Tối đa 3)</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {formData.images.map((img, idx) => (
-                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden group">
-                      <img src={img} alt="Preview" className="w-full h-full object-cover" />
-                      <button 
-                        onClick={() => removeImage(idx)}
-                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  ))}
-                  {formData.images.length < 3 && (
-                    <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-blue-500 hover:border-blue-500 cursor-pointer transition-all">
-                      <Plus size={20} />
-                      <span className="text-[8px] font-black uppercase mt-1">Tải ảnh</span>
-                      <input type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
-                    </label>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Giờ PV</label>
-                  <input value={formData.interviewTime} onChange={e => setFormData({...formData, interviewTime: e.target.value})} placeholder="Vd: 8:00 Thứ 2" className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tuyển Nam/Nữ</label>
-                  <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600">
-                    <option value="Nam/Nữ">Nam/Nữ</option>
-                    <option value="Nam">Chỉ Nam</option>
-                    <option value="Nữ">Chỉ Nữ</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lương CB</label>
-                  <input type="number" value={formData.baseSalary} onChange={e => setFormData({...formData, baseSalary: Number(e.target.value)})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phụ cấp</label>
-                  <input type="number" value={formData.allowance} onChange={e => setFormData({...formData, allowance: Number(e.target.value)})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
-                </div>
-              </div>
-              <textarea placeholder="Giấy tờ yêu cầu" value={formData.requiredDocs} onChange={e => setFormData({...formData, requiredDocs: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
-              <textarea placeholder="Ghi chú khác" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-blue-600" />
-            </div>
-
-            <button onClick={handleCreateOrUpdate} className="w-full bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-100 flex items-center justify-center gap-2 uppercase tracking-widest">
-              <Save size={18} /> {editingId ? 'Cập nhật bài đăng' : 'Lưu bài đăng'}
-            </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,4 +1,4 @@
-export type UserRole = 'user' | 'admin';
+export type UserRole = "user" | "admin";
 
 export interface BankInfo {
   bankName: string;
@@ -7,9 +7,12 @@ export interface BankInfo {
 }
 
 export interface UserProfile {
-  uid: string;
+  id: string;
+  uid: string; // for backward compatibility
   email: string;
+  username?: string;
   role: UserRole;
+  created?: string;
   employeeId?: string;
   fullName?: string;
   phoneNumber?: string;
@@ -20,20 +23,60 @@ export interface UserProfile {
   chuyenCan?: number;
   doiSong?: number;
   thamNien?: number;
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
   bankInfo?: BankInfo;
-  status?: 'active' | 'disabled';
+  pendingBankInfo?: BankInfo;
+  bankInfoStatus?: "pending" | "approved" | "rejected";
+  approvalStatus?: "pending" | "approved" | "rejected";
+  bankNotificationRead?: boolean;
+  status?: "active" | "disabled";
   lastLogin?: any;
+}
+
+export interface BankChangeLog {
+  id: string;
+  userId: string;
+  userName: string;
+  type: "update" | "request" | "approval" | "rejection";
+  bankInfo: BankInfo;
+  status: "pending" | "approved" | "rejected";
+  processedBy?: string;
+  processedByName?: string;
+  created?: string;
+  updated?: string;
+  createdAt?: any;
 }
 
 export interface AppSettings {
   companies: string[];
+  requireApproval?: boolean;
+}
+
+export interface CompanySettings {
+  name: string;
+  logoUrl: string;
+  advanceConditions?: string;
+  address?: string;
+  mapLink?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  documents?: CompanyDocument[];
+  description?: string;
+  stats?: {
+    workers: string;
+    partners: string;
+  };
+  requireApproval?: boolean;
 }
 
 export interface AttendanceRecord {
   id?: string;
   userId: string;
   date: string; // YYYY-MM-DD
-  shift: 'day' | 'night';
+  shift: "day" | "night";
   isHoliday: boolean;
   hoursHC: number;
   hoursOT: number;
@@ -47,15 +90,34 @@ export interface Instruction {
   fontSize: number;
 }
 
+export interface ApprovalRecord {
+  approvedBy: string; // user ID
+  approvedByName: string;
+  date: string;
+  status: "completed" | "recovered"; // action taken
+  note?: string; // comment/reason from admin
+}
+
 export interface Complaint {
   id: string;
   userId: string;
+  employeeId?: string;
   name: string;
   company: string;
   phone: string;
   content: string;
-  createdAt: any;
-  status: 'pending' | 'completed';
+  type: "complaint" | "advance";
+  advanceAmount?: number;
+  bankInfo?: BankInfo;
+  approvalHistory?: ApprovalRecord[];
+  approvedBy?: string; // last approver ID
+  approvedByName?: string;
+  approvedDate?: string; // last approval date
+  approvalNote?: string; // last approval note
+  created?: string;
+  updated?: string;
+  createdAt?: any;
+  status: "pending" | "completed" | "recovered";
 }
 
 export interface JobPost {
@@ -70,7 +132,9 @@ export interface JobPost {
   allowance: number;
   requiredDocs: string;
   notes: string;
-  createdAt: any;
+  created?: string;
+  updated?: string;
+  createdAt?: any;
 }
 
 export interface DirectGuidance {
@@ -80,16 +144,71 @@ export interface DirectGuidance {
   title?: string;
   content: string;
   read: boolean;
-  createdAt: any;
+  created?: string;
+  updated?: string;
+  createdAt?: any;
+}
+
+export interface CompanyDocument {
+  id: string;
+  name: string;
+  imageUrl: string;
+  updatedAt: any;
+}
+
+export interface CompanySettings {
+  name: string;
+  logoUrl: string;
+  advanceConditions?: string;
+  address?: string;
+  mapLink?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  documents?: CompanyDocument[];
+  description?: string;
+  stats?: {
+    workers: string;
+    partners: string;
+  };
+}
+
+export interface PayrollRecord {
+  id: string;
+  userId: string;
+  employeeId: string;
+  fullName: string;
+  companyName: string;
+  month: string; // YYYY-MM
+  version: number;
+  type: "attendance" | "payroll";
+  data: any; // Flexible data for specific fields
+  created?: string;
+  updated?: string;
+  createdAt?: any;
+  batchId?: string;
+}
+
+export interface PayrollBatch {
+  id: string;
+  companyName: string;
+  month: string;
+  type: "attendance" | "payroll";
+  fileName: string;
+  fileData: string; // Base64
+  recordCount: number;
+  created?: string;
+  updated?: string;
+  createdAt?: any;
 }
 
 export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
+  CREATE = "create",
+  UPDATE = "update",
+  DELETE = "delete",
+  LIST = "list",
+  GET = "get",
+  WRITE = "write",
 }
 
 export interface FirestoreErrorInfo {
@@ -101,5 +220,5 @@ export interface FirestoreErrorInfo {
     email?: string | null;
     emailVerified?: boolean | null;
     isAnonymous?: boolean | null;
-  }
+  };
 }

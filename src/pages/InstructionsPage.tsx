@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, getDocs, addDoc, updateDoc, doc, deleteDoc, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { pb } from '../lib/pocketbase';
 import { Instruction, OperationType, DirectGuidance } from '../types';
-import { handleFirestoreError } from '../lib/firestoreUtils';
+import { handlePBError } from '../lib/pbUtils';
 import { Plus, Edit2, Trash2, Info, CheckCircle, AlertCircle, HelpCircle, Save, X, Mail, Clock, History, ChevronDown, ChevronUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../lib/utils';
@@ -32,28 +31,25 @@ export default function InstructionsPage() {
 
   const fetchInstructions = async () => {
     try {
-      const snap = await getDocs(collection(db, 'instructions'));
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Instruction));
-      setInstructions(data);
+      const data = await pb.collection('instructions').getFullList({
+        sort: 'order'
+      });
+      setInstructions(data as any);
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, 'instructions');
+      handlePBError(error, OperationType.LIST, 'instructions');
     }
   };
 
   const fetchDirectGuidances = async () => {
     if (!profile) return;
     try {
-      const q = query(
-        collection(db, 'directGuidance'),
-        where('receiverId', '==', profile.uid)
-      );
-      const snap = await getDocs(q);
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DirectGuidance));
-      // Sort by createdAt desc locally (could use index but simplified here)
-      data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      setDirectGuidances(data);
+      const data = await pb.collection('directGuidance').getFullList({
+        filter: `receiverId = "${profile.id}"`,
+        sort: '-created'
+      });
+      setDirectGuidances(data as any);
     } catch (error) {
-      console.error('Error fetching direct guidances:', error);
+      handlePBError(error, OperationType.LIST, 'directGuidance');
     }
   };
 
@@ -68,10 +64,10 @@ export default function InstructionsPage() {
 
   const markAsRead = async (id: string) => {
     try {
-      await updateDoc(doc(db, 'directGuidance', id), { read: true });
+      await pb.collection('directGuidance').update(id, { read: true });
       setDirectGuidances(prev => prev.map(g => g.id === id ? { ...g, read: true } : g));
     } catch (error) {
-      console.error('Error marking as read:', error);
+      handlePBError(error, OperationType.UPDATE, `directGuidance/${id}`);
     }
   };
 
@@ -85,24 +81,27 @@ export default function InstructionsPage() {
         fontSize: editing.fontSize || 14
       };
       if (editing.id) {
-        await updateDoc(doc(db, 'instructions', editing.id), data);
+        await pb.collection('instructions').update(editing.id, data);
       } else {
-        await addDoc(collection(db, 'instructions'), data);
+        await pb.collection('instructions').create({
+          ...data,
+          order: instructions.length
+        });
       }
       setEditing(null);
       fetchInstructions();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'instructions');
+      handlePBError(error, OperationType.WRITE, 'instructions');
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Xóa hướng dẫn này?')) return;
     try {
-      await deleteDoc(doc(db, 'instructions', id));
+      await pb.collection('instructions').delete(id);
       fetchInstructions();
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `instructions/${id}`);
+      handlePBError(error, OperationType.DELETE, `instructions/${id}`);
     }
   };
 
@@ -228,7 +227,7 @@ export default function InstructionsPage() {
                           </div>
                           <p className="text-blue-100/60 text-[8px] font-black uppercase tracking-widest mt-0.5 flex items-center gap-1">
                             <Clock size={10} />
-                            {item.createdAt?.seconds ? format(item.createdAt.toDate(), 'HH:mm dd/MM/yyyy') : 'vừa xong'}
+                            {item.created ? format(new Date(item.created), 'HH:mm dd/MM/yyyy') : 'vừa xong'}
                           </p>
                           
                           <AnimatePresence mode="wait">
@@ -314,7 +313,7 @@ export default function InstructionsPage() {
                                   <Clock size={12} className="text-slate-300" />
                                 </div>
                                 <p className="text-slate-400 text-[8px] font-bold uppercase tracking-widest mt-0.5">
-                                  {item.createdAt?.seconds ? format(item.createdAt.toDate(), 'HH:mm dd/MM/yyyy') : 'vừa xong'}
+                                  {item.created ? format(new Date(item.created), 'HH:mm dd/MM/yyyy') : 'vừa xong'}
                                 </p>
                                 
                                 <AnimatePresence mode="wait">

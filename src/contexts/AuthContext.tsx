@@ -1,14 +1,12 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
-import { UserProfile } from '../types';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { pb } from "../lib/pocketbase";
+import { UserProfile } from "../types";
 
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
   profile: UserProfile | null;
   loading: boolean;
-  signIn: (email: string, pass: string) => Promise<void>;
+  signIn: (username: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   changePassword: (newPass: string) => Promise<void>;
@@ -17,96 +15,84 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (uid: string) => {
-    const docRef = doc(db, 'users', uid);
-    const docSnap = await getDoc(docRef);
-    
-    if (docSnap.exists()) {
-      const data = docSnap.data() as UserProfile;
-      
-      if (data.status === 'disabled') {
-        await signOut(auth);
-        throw new Error('Tài khoản của bạn đã bị vô hiệu hóa.');
-      }
+  useEffect(() => {
+    // Initial check
+    if (pb.authStore.isValid) {
+      setUser(pb.authStore.model);
+      setProfile(pb.authStore.model as any);
+    }
+    setLoading(false);
 
-      const isAdminEmail = auth.currentUser?.email === 'admin@vrecruit.com' || auth.currentUser?.email === 'hoanghaitdvp98@gmail.com';
-      let role = data.role;
-      if (isAdminEmail && data.role !== 'admin') {
-        role = 'admin';
-      }
+    // Subscribe to auth state changes
+    const unsubscribe = pb.authStore.onChange((token, model) => {
+      setUser(model);
+      setProfile(model as any);
+    });
 
-      const updatedProfile = { 
-        ...data, 
-        role, 
-        lastLogin: serverTimestamp(),
-        status: 'active' as const
-      };
-      
-      await setDoc(docRef, updatedProfile, { merge: true });
-      setProfile(updatedProfile);
-    } else {
-      const isAdminEmail = auth.currentUser?.email === 'admin@vrecruit.com' || auth.currentUser?.email === 'hoanghaitdvp98@gmail.com';
-      const newProfile: UserProfile = {
-        uid,
-        email: auth.currentUser?.email || '',
-        role: isAdminEmail ? 'admin' : 'user',
-        defaultHC: 8,
-        defaultOT: 0,
-        lcb: 0,
-        bankInfo: { bankName: '', accountNumber: '', accountName: '' },
-        status: 'active',
-        lastLogin: serverTimestamp()
-      };
-      await setDoc(docRef, newProfile);
-      setProfile(newProfile);
+    return () => unsubscribe();
+  }, []);
+
+  const signIn = async (username: string, pass: string) => {
+    try {
+      await pb.collection("users").authWithPassword(username, pass);
+    } catch (error: any) {
+      console.error("Login error:", error);
+      const msg =
+        error && error.message ? String(error.message) : String(error);
+      if (
+        msg
+          .toLowerCase()
+          .includes("not configured to allow password authentication")
+      ) {
+        throw new Error("COLLECTION_NOT_ALLOW_PASSWORD_AUTH");
+      }
+      throw error;
     }
   };
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          await fetchProfile(user.uid);
-          setUser(user);
-        } catch (error: any) {
-          console.error('Account disabled or profile error:', error);
-          setUser(null);
-          setProfile(null);
-        }
-      } else {
-        setUser(null);
-        setProfile(null);
-      }
-      setLoading(false);
-    });
-    return unsubscribe;
-  }, []);
-
-  const signIn = async (email: string, pass: string) => {
-    const loginEmail = (email === 'admin' || !email.includes('@')) ? `${email}@vrecruit.com` : email;
-    await signInWithEmailAndPassword(auth, loginEmail, pass);
-  };
-
   const logout = async () => {
-    await signOut(auth);
+    pb.authStore.clear();
   };
 
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user.uid);
+    if (pb.authStore.isValid && pb.authStore.model) {
+      try {
+        const freshModel = await pb
+          .collection("users")
+          .getOne(pb.authStore.model.id);
+        setUser(freshModel);
+        setProfile(freshModel as any);
+      } catch (error) {
+        console.error("Error refreshing profile:", error);
+      }
+    }
   };
 
   const changePassword = async (newPass: string) => {
-    if (auth.currentUser) {
-      await updatePassword(auth.currentUser, newPass);
+    if (pb.authStore.isValid && pb.authStore.model) {
+      await pb.collection("users").update(pb.authStore.model.id, {
+        password: newPass,
+        passwordConfirm: newPass,
+      });
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, logout, refreshProfile, changePassword }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        loading,
+        signIn,
+        logout,
+        refreshProfile,
+        changePassword,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -115,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
